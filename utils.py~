@@ -1,0 +1,441 @@
+# Archivo Definido en Python para los proveedores
+# DRBR 14-May-2007
+import string, os
+import datetime
+import pygtk
+import gtk
+import re
+dirprogs_z = ".." + os.sep + "altaalm" + os.sep
+
+EXIT         = 0
+CONTINUE     = 1
+NUEVO        = 1
+MODIFICA     = 2
+BORRAR       = 3
+NUEVOREN     = 4
+ESPERAREN    = 5
+LINEAS_X_PAG = 60
+
+grd_lines_soported = ["win32"]
+    
+def lee_basedato_ini():
+    basedato_z = []
+    mibd = { 'host':'',
+             'user':'',
+             'password':'',
+             'base':''
+            }
+
+    fh_bd = open('basedato.ini')
+    for line in fh_bd.readlines():
+        basedato_z.append(string.rstrip(line))
+        
+    mibd['host']= basedato_z[0]
+    mibd['user']= basedato_z[1]
+    mibd['password']= basedato_z[2]
+    mibd['base']= basedato_z[3]
+    return mibd
+
+def StrToInt(valor, default=0):
+    miint_z = 0
+    try:
+      miint_z = int(valor)
+    except:
+      miint_z = default
+      
+    return(miint_z)
+
+def IntToStr(valor):
+    mistr_z = 0
+    try:
+      mistr_z = '%d' % valor
+    except:
+      mistr_z = "0"
+      
+    return(mistr_z)
+# --- Fin de IntTo Str  -----
+
+def StrToFloat(valor, default=0):
+    mifloat_z = 0.0
+    try:
+      mifloat_z = float(valor)
+    except:
+      mifloat_z = default
+      
+    return(mifloat_z)
+
+def StrToDate(fecha, default=0):
+    mifecha_z = datetime.date.today()
+    mianu_z = 0
+    mimes_z = 0
+    midia_z = 0
+    mianu_z = StrToInt(fecha[6:10])
+    mimes_z = StrToInt(fecha[3:5])
+    midia_z = StrToInt(fecha[0:2])
+    try:
+      mifecha_z = datetime.date(mianu_z, mimes_z, midia_z)
+    except:
+      mifecha_z = -1
+    return(mifecha_z)
+
+def DateToStr(fecha, formato_z='%d/%m/%Y'):
+    try:
+      mifecha_z = fecha.strftime(formato_z)
+    except:
+      mifecha_z = "  /  /"
+    return(mifecha_z)
+
+def PrimeroDeMes(fecha, formato_z='%m/%Y'):
+    try:
+      mifecha_z = StrToDate("01/"+fecha.strftime(formato_z))
+    except:
+      mifecha_z = -1
+    return(mifecha_z)
+
+def UltimoDeMes(fecha):
+    try:
+      dia_z = fecha.day
+      mes_z = fecha.month
+      anu_z = fecha.year
+      if mes_z in [ 1, 3, 5, 7, 8, 10, 12]:
+         dia_z = 31
+      elif mes_z in [ 4, 6, 9, 11]:
+         dia_z = 30
+      else:
+         if anu_z % 4 == 0:
+            dia_z = 29
+         else:
+            dia_z = 28
+      strfecha_z = "%2d/" % dia_z + "%2d/" % mes_z + "%4d/" % anu_z
+      mifecha_z = StrToDate(strfecha_z)
+    except:
+      mifecha_z = -1
+    return(mifecha_z)
+
+def EsUltimoDeMes(fecha):
+    result_z = False
+    try:
+      dia_z = fecha.day
+      mes_z = fecha.month
+      anu_z = fecha.year
+      result_z = False
+      if mes_z in [ 1, 3, 5, 7, 8, 10, 12]:
+         if dia_z == 31:
+            result_z = True
+      elif mes_z in [ 4, 6, 9, 11]:
+         if dia_z == 30:
+            result_z = True
+      else:
+         if anu_z % 4 == 0:
+            if dia_z == 29:
+               result_z = True
+         else:
+            if dia_z == 28:
+               result_z = True
+    except:
+      mifecha_z = -1
+    return(result_z)
+
+def SumaMeses(fecha, meses_z=1):
+    result_z = False
+    esultimodemes_z = EsUltimoDeMes(fecha)
+    dia_z = fecha.day
+    mes_z = fecha.month
+    anu_z = fecha.year
+    anuinc_z = int(meses_z / 12.0)
+    mesinc_z = int(abs(meses_z) % 12)
+    if meses_z < 0:
+       mesinc_z = mesinc_z * -1
+    mes_z = mes_z + mesinc_z
+    if mes_z < 1:
+       anuinc_z = anuinc_z -1
+       mes_z = 12 + mes_z
+    if mes_z > 12:
+       anuinc_z = anuinc_z +1
+       mes_z = 12 - mes_z
+    anu_z = anu_z + anuinc_z
+    strfecha_z = "%2d/" % dia_z + "%2d/" % mes_z + "%4d" % anu_z
+    mifecha_z = StrToDate(strfecha_z)
+    if esultimodemes_z == True:
+       mifecha_z = UltimoDeMes(mifecha_z)
+    return(mifecha_z)
+
+def msgdlg(mensaje_z):
+    message = gtk.MessageDialog(None, gtk.DIALOG_MODAL, gtk.MESSAGE_INFO, gtk.BUTTONS_NONE, mensaje_z)
+    message.add_button(gtk.STOCK_OK, gtk.RESPONSE_OK)
+    message.set_position(gtk.WIN_POS_CENTER)
+    message.run()
+    message.destroy()
+    
+def yesnodlg(mensaje_z):
+    message = gtk.MessageDialog(None, gtk.DIALOG_MODAL, gtk.MESSAGE_INFO, gtk.BUTTONS_NONE, mensaje_z)
+    message.add_button(gtk.STOCK_OK, gtk.RESPONSE_OK)
+    message.add_button(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+    message.set_position(gtk.WIN_POS_CENTER)
+    resp_z = message.run()
+    message.destroy()
+    return(resp_z)
+
+def currency(amount):
+    temp = "%.2f" % amount
+    profile=re.compile(r"(\d)(\d\d\d[.,])")
+    while 1:
+        temp, count = re.subn(profile,r"\1,\2",temp)
+        if not count:
+           break
+    # optionally adds a dollar sign
+    return temp
+
+def obten_tipago(tipo_z=''):
+    if len(tipo_z) < 1:
+       tipo_z = 'E'
+         
+    if tipo_z[0] == 'C':
+       midato_z = 'CAJA AHORRO'
+    elif tipo_z[0] == 'A':
+       midato_z = 'ACL'
+    else:
+       midato_z = 'EFECTIVO'
+    return (midato_z)
+
+def busca_datos(recordset, titcols_z, titulo_z=''):
+    dlg_datosalm = dirprogs_z + "dlg_selalm.glade"
+    wTree       = gtk.glade.XML(dlg_datosalm)
+    wdlgalm     = wTree.get_widget  ("dlg_selalm")
+    grd_almacen = wTree.get_widget  ("grd_almacen")
+    #grd_almacen.set_grid_lines(True)
+    wdlgalm.set_title(titulo_z)
+    titcolumns_z = titcols_z.split(":")
+    ncols_z = len(titcolumns_z)
+    lista_seleccionados = gtk.ListStore(*[str for col in titcolumns_z])
+
+    grd_almacen.set_model(lista_seleccionados)
+    ii_z=0
+    for columna_z in titcolumns_z:
+        col = gtk.TreeViewColumn(columna_z)
+        grd_almacen.append_column(col)
+        cell = gtk.CellRendererText()
+        col.pack_start(cell, False)
+        col.set_attributes(cell, text=ii_z)
+        ii_z = ii_z + 1
+        
+    for record in recordset:
+        if ncols_z == 1:
+           lista_seleccionados.append([record])
+        else:
+           lista_seleccionados.append(record)
+    resp_z = wdlgalm.run()
+    datosresult_z = ""
+    if resp_z == gtk.RESPONSE_OK:
+       selection = grd_almacen.get_selection()
+       # Get the selection iter
+       model, selection_iter = selection.get_selected()
+       if (selection_iter):
+          for ii_z in range(0, ncols_z):
+              datosresult_z = datosresult_z + lista_seleccionados.get_value(selection_iter, ii_z) + ":"
+          datosresult_z = datosresult_z + repr(resp_z)
+    wdlgalm.destroy()
+    return(datosresult_z)
+
+class pide_series:
+  """Esta es una Clase que pide las Series"""
+  def __init__(self, titcols_z='', titulo_z='', folios_z=(), tipo_z="E", cuantos_z=0):
+        dlg_series = dirprogs_z + "dlg_series.glade"
+        self.cuantos_z = cuantos_z
+        self.wTreeSeries       = gtk.glade.XML(dlg_series)
+        self.wdlgalm     = self.wTreeSeries.get_widget  ("dlg_series")
+        self.grd_seleccionados = self.wTreeSeries.get_widget  ("grd_seleccionados")
+        self.grd_disponibles = self.wTreeSeries.get_widget  ("grd_disponibles")
+        self.frame_disponibles = self.wTreeSeries.get_widget  ("frame_disponibles")
+        self.btnbar_control = self.wTreeSeries.get_widget  ("btnbar_control")
+        btn_modifserie = self.wTreeSeries.get_widget  ("btn_modifserie")
+        box_contenedor = self.wTreeSeries.get_widget  ("box_contenedor")
+        if tipo_z == "E":
+           box_contenedor.remove(self.frame_disponibles)
+           box_contenedor.remove(self.btnbar_control)
+        else:
+           btn_tomatodos=self.wTreeSeries.get_widget  ("btn_tomatodos")
+           btn_tomauno=self.wTreeSeries.get_widget  ("btn_tomauno")
+           btn_qitatodos=self.wTreeSeries.get_widget  ("btn_qitatodos")
+           btn_qitauno=self.wTreeSeries.get_widget  ("btn_qitauno")
+           btn_tomatodos.connect("clicked", self.btn_tomatodos_clicked)
+           btn_tomauno.connect  ("clicked", self.btn_tomauno_clicked)
+           btn_qitatodos.connect("clicked", self.btn_qitatodos_clicked)
+           btn_qitauno.connect  ("clicked", self.btn_qitauno_clicked)
+           
+        #grd_seleccionados.set_grid_lines(True)
+        self.wdlgalm.set_title(titulo_z)
+        titcolumns_z = titcols_z.split(":")
+        miscolumnas_z = []
+           
+        ii_z=0
+        for columna_z in titcolumns_z:
+            miscolumnas_z.append(str)
+            col = gtk.TreeViewColumn(columna_z)
+            self.grd_seleccionados.append_column(col)
+            cell = gtk.CellRendererText()
+            col.pack_start(cell, False)
+            col.set_attributes(cell, text=ii_z)
+            
+            col = gtk.TreeViewColumn(columna_z)
+            self.grd_disponibles.append_column(col)
+            cell = gtk.CellRendererText()
+            col.pack_start(cell, False)
+            col.set_attributes(cell, text=ii_z)
+            ii_z = ii_z + 1
+        self.lista_seleccionados = gtk.ListStore(*[col for col in miscolumnas_z])
+        self.lista_disponibles = gtk.ListStore(*[col for col in miscolumnas_z])
+        self.grd_seleccionados.set_model(self.lista_seleccionados)
+        self.grd_disponibles.set_model(self.lista_disponibles)
+
+        for datos in folios_z:
+            if tipo_z == "E":
+               self.lista_seleccionados.append(datos)
+            else:
+               self.lista_disponibles.append(datos)
+               
+        self.grd_seleccionados.connect("cursor-changed", self.ren_serie_selec)
+        btn_modifserie.connect("clicked", self.btn_modifserie_clicked)
+        self.wTreeSeries.get_widget("edt_serie").connect("activate", self.btn_modifserie_clicked)
+
+  def ejecuta(self):
+        resp_z = self.wdlgalm.run()
+        folios_z=[]
+        datosresult_z = ""
+        if resp_z == gtk.RESPONSE_OK:
+           for datos in self.lista_seleccionados:
+               folios_z.append(datos)
+        self.wdlgalm.destroy()
+        return(folios_z)
+
+  def ren_serie_selec(self, widget):
+      edt_serie    = self.wTreeSeries.get_widget("edt_serie")
+      edt_folio    = self.wTreeSeries.get_widget("edt_folio")
+      selection = self.grd_seleccionados.get_selection()
+      # Get the selection iter
+      model, selection_iter = selection.get_selected()
+      if (selection_iter):
+          folio_z = self.lista_seleccionados.get_value(selection_iter, 0)
+          serie_z = self.lista_seleccionados.get_value(selection_iter, 1)
+          editable_z = self.lista_seleccionados.get_value(selection_iter, 2)
+      edt_folio.set_text(folio_z)
+      edt_serie.set_text(serie_z)
+      self.wTreeSeries.get_widget  ("btn_modifserie").set_child_visible(editable_z == "S")
+      edt_serie.set_editable(editable_z == "S")
+
+  def btn_tomatodos_clicked(self, widget):
+      self.pasa_la_serie(len(self.lista_disponibles), "AGREGAR")
+
+  def btn_tomauno_clicked(self, widget):
+      self.pasa_la_serie(1, "AGREGAR")
+
+  def btn_qitatodos_clicked(self, widget):
+      self.pasa_la_serie(len(self.lista_seleccionados), "QUITAR")
+
+  def btn_qitauno_clicked(self, widget):
+      self.pasa_la_serie(1, "QUITAR")
+
+  def pasa_la_serie(self, cuantos_z=1, hacia_z=''):
+      if hacia_z == "AGREGAR":
+         if len(self.lista_seleccionados) >= self.cuantos_z:
+            msgdlg("Ya tiene seleccionados todos los que debe");
+            return(-1)
+
+         if cuantos_z == 1:
+            selection = self.grd_disponibles.get_selection()
+            # Get the selection iter
+            model, selection_iter = selection.get_selected()
+            if (selection_iter):
+               folio_z = self.lista_disponibles.get_value(selection_iter, 0)
+               serie_z = self.lista_disponibles.get_value(selection_iter, 1)
+               editable_z = self.lista_disponibles.get_value(selection_iter, 2)
+               self.lista_seleccionados.append([folio_z, serie_z, editable_z])
+               self.lista_disponibles.remove(selection_iter)
+            # Fin de If Iter 
+         else:
+            for midato_z in self.lista_disponibles:
+               if len(self.lista_seleccionados) < self.cuantos_z:
+                 folio_z = midato_z[0]
+                 serie_z = midato_z[1]
+                 editable_z = midato_z[2]
+                 self.lista_seleccionados.append([folio_z, serie_z, editable_z])
+               #Fin de if
+            # Fin de for
+            self.lista_disponibles.clear()
+         # Fin de If cuantos
+      else:
+         if cuantos_z == 1:
+            selection = self.grd_seleccionados.get_selection()
+            # Get the selection iter
+            model, selection_iter = selection.get_selected()
+            if (selection_iter):
+               folio_z = self.lista_seleccionados.get_value(selection_iter, 0)
+               serie_z = self.lista_seleccionados.get_value(selection_iter, 1)
+               editable_z = self.lista_seleccionados.get_value(selection_iter, 2)
+               self.lista_disponibles.append([folio_z, serie_z, editable_z])
+               self.lista_seleccionados.remove(selection_iter)
+            # Fin de If Iter 
+         else:
+            for midato_z in self.lista_seleccionados:
+                folio_z = midato_z[0]
+                serie_z = midato_z[1]
+                editable_z = midato_z[2]
+                self.lista_disponibles.append([folio_z, serie_z, editable_z])
+            #Fin de for
+            self.lista_seleccionados.clear()
+         # Fin de If cuantos
+      #Fin de If Izq o Der 
+
+  def btn_modifserie_clicked(self, widget):
+      edt_serie    = self.wTreeSeries.get_widget("edt_serie")
+      serie_z = edt_serie.get_text().upper()
+      selection = self.grd_seleccionados.get_selection()
+      # Get the selection iter
+      model, selection_iter = selection.get_selected()
+      if (selection_iter):
+          self.lista_seleccionados.set_value(selection_iter, 1, serie_z)
+
+# Fin de Clase pide Series
+
+def inv_maximo (fecalta_z, univta_z, hoy_z, inianu_z):
+  maxim_z=0
+  diasdif_z=1
+  fecini_z = inianu_z
+  strfecalta_z = DateToStr(fecalta_z, "%Y%m%d")
+  strinianu_z = DateToStr(inianu_z, "%Y%m%d")
+  if strfecalta_z > strinianu_z:
+     fecini_z = fecalta_z
+  diasdif_z = (hoy_z - fecini_z).days
+  if diasdif_z  <= 0:
+     diasdif_z = 1
+  maxim_z = int(65 * univta_z /diasdif_z)
+  return(maxim_z)
+#---------------------------------------------------------------------------
+
+def  calcu_preciomay(empaqe_z, costo_z, preciou_z, piva_z):
+  factor_z=0;
+  costoneto_z=0
+  mub_z=0
+  costoneto_z = costo_z * ( piva_z / 100 + 1 )
+  if(empaqe_z == "SUNTUARIO"):
+    factor_z = .6 / .64;
+  else:
+    if preciou_z <> 0:
+       mub_z =  ( 1 - ( costoneto_z / preciou_z  ) ) * 100
+    if mub_z < 39:
+      preciou_z = costoneto_z / .94
+      factor_z = 1
+    elif mub_z < 41:
+      factor_z = .64
+    elif mub_z < 43:
+      factor_z = .63
+    elif mub_z < 45:
+      factor_z = .62
+    elif mub_z < 47:
+      factor_z = .61
+    else:
+      factor_z =  .60
+  
+  preciou_z = ( preciou_z * factor_z ) / ( piva_z / 100 + 1)
+  return (preciou_z)
+#//---------------------------------------------------------------------------

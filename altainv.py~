@@ -1,0 +1,1073 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+import sys
+import string, os
+try:
+  import pygtk
+  pygtk.require('2.0')
+except:
+  pass
+try:
+  import gtk
+  import gtk.glade
+except:
+  sys.exit(1)
+try:
+  import MySQLdb
+except:
+  sys.exit(1)
+import def_tablas
+import utils
+import datetime
+
+global mydb
+global cia_z
+global mibd
+global cias
+global almacen
+global inven
+global invulpre
+
+#-- Define additional constants
+EXIT         = 0
+CONTINUE     = 1
+NUEVO        = 1
+MODIFICA     = 2
+BORRAR       = 3
+modo_z       = 0
+CONCEPTOS    = def_tablas.CONCEPTOS
+mibd = def_tablas.lee_basedato_ini()
+cias = def_tablas.define_cias()
+almacen = def_tablas.define_almacen()
+inven = def_tablas.define_inven()
+invulpre = def_tablas.define_invulpre()
+dirprogs_z = ".." + os.sep + "altaalm" + os.sep
+tipoagru_z = [ "GRUPO", "MARCA", "PROVEEDOR", "SITUACION", "CODIGO", "DIARY" ]
+tipoest_z = [ "SALIDAS ESPECIALES", "SALIDAS X VENTA", "ENTRADAS X CANCEL", \
+             "ENTRADAS ESPECIALES", "SALIDAS MAYOREO", "ENTRADAS X COMPRA" ]
+class Altainv:
+  """Esta es una aplicación Alta Inventario"""
+       
+  def __init__(self):
+       
+    #Establecemos el archivo Glade
+    self.gladefile = dirprogs_z + "altainv.glade"
+    self.wTree = gtk.glade.XML(self.gladefile)
+    dic = { "on_btn_primero_clicked": self.on_btn_primero_clicked, \
+            "on_btn_sigte_clicked": self.on_btn_sigte_clicked, \
+            "on_btn_anter_clicked": self.on_btn_anter_clicked, \
+            "on_btn_ultimo_clicked": self.on_btn_ultimo_clicked, \
+            "on_btn_nuevo_clicked": self.on_btn_nuevo_clicked, \
+            "on_btn_modif_clicked": self.on_btn_modif_clicked, \
+            "on_btn_borra_clicked": self.on_btn_borra_clicked, \
+            "on_edt_codigo_activate": self.on_edt_codigo_activate, \
+            "on_edt_almkdx_activate": self.on_edt_almkdx_activate, \
+            "on_btn_okestadis_clicked": self.on_btn_okestadis_clicked, \
+            "on_edt_agrupapor_activate": self.on_edt_agrupapor_activate, \
+            "on_edt_tipoest_activate": self.on_edt_tipoest_activate, \
+            #"on_btn_aceptar_clicked": self.on_btn_aceptar_clicked, \
+            #"on_btn_cancelar_clicked": self.on_btn_cancelar_clicked
+            }
+    #                "on_win_altaalm_destroy": gtk.main_quit }
+    self.wTree.get_widget("edt_costosi").set_property('xalign', 1)
+    self.wTree.get_widget("edt_costono").set_property('xalign', 1)
+    self.wTree.get_widget("edt_preciomds").set_property('xalign', 1)
+    self.wTree.get_widget("edt_preciofide").set_property('xalign', 1)
+    self.wTree.get_widget("edt_min").set_property('xalign', 1)
+    self.wTree.get_widget("edt_max").set_property('xalign', 1)
+    self.wTree.get_widget("edt_piva").set_property('xalign', 1)
+    self.wTree.get_widget("edt_preciomay").set_property('xalign', 1)
+    self.wTree.get_widget("edt_preciomayneto").set_property('xalign', 1)
+    self.wTree.get_widget("edt_mubmay").set_property('xalign', 1)
+    self.wTree.get_widget("edt_inicials").set_property('xalign', 1)
+    self.wTree.get_widget("edt_inicialn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entcoms").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entcomn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entcans").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entcann").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entesps").set_property('xalign', 1)
+    self.wTree.get_widget("edt_entespn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_totents").set_property('xalign', 1)
+    self.wTree.get_widget("edt_totentn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salvtas").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salvtan").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salfons").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salfonn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salesps").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salespn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salmays").set_property('xalign', 1)
+    self.wTree.get_widget("edt_salmayn").set_property('xalign', 1)
+    self.wTree.get_widget("edt_existes").set_property('xalign', 1)
+    self.wTree.get_widget("edt_existen").set_property('xalign', 1)
+
+    self.wTree.signal_autoconnect(dic)
+    global cias
+    global almacen
+    global cia_z
+    global mydb
+    self.inianu_z = utils.StrToDate("01/01/"+datetime.date.today().strftime('%Y'))
+    self.hoy_z = datetime.date.today()
+    cia_z = 1
+    cias_lines = []
+    basedato_z = []
+
+    fh_cias = open('.cias.ini')
+    for line in fh_cias.readlines():
+        cias_lines.append(string.rstrip(line))
+    cia_z = cias_lines[0]
+
+# execute SQL statement
+    mydb = MySQLdb.connect(mibd['host'], mibd['user'], mibd['password'], mibd['base'])
+
+    sql_z = "select * from ciasinv where cia = " + repr(cia_z)
+    cursor = mydb.cursor()
+    cursor.execute(sql_z)
+    record = cursor.fetchone()
+    cias['cia'] = record[0]
+    cias['razon'] = record[1]
+    cias['dir'] = record[2]
+    cias['dir2'] = record[3]
+    cias['nomfis'] = record[4]
+    cias['tel'] = record[5]
+    cias['fax'] = record[6]
+    cias['rfc'] = record[7]
+    miwin = self.wTree.get_widget("win_altainv")
+    miwin.set_title(cias['razon'] + " Mantenimiento de Inventario")
+    self.define_tabla_exist()
+    self.define_tab_estadis()
+    self.editable_onoff(False)
+    self.define_tab_kardex()
+    grd_kardex = self.wTree.get_widget("grd_kardex")
+    grd_kardex.connect("row_activated", self.on_grd_kardex_activate)
+
+  def define_tab_kardex(self):
+    global cia_z
+    grd_kardex = self.wTree.get_widget("grd_kardex")
+    self.lst_kardex = gtk.ListStore(str, str, int, str, str, str, int, str, str, str, str, str, str)
+    grd_kardex.set_model(self.lst_kardex)
+
+    col01 = gtk.TreeViewColumn('Fecha')
+    col02 = gtk.TreeViewColumn('E')
+    col03 = gtk.TreeViewColumn('Entrada')
+    col04 = gtk.TreeViewColumn('Viene de')
+    col05 = gtk.TreeViewColumn('Fol.Viene')
+    col06 = gtk.TreeViewColumn('Proveedor')
+    col07 = gtk.TreeViewColumn('Folio')
+    col08 = gtk.TreeViewColumn('Serie')
+    col09 = gtk.TreeViewColumn('S')
+    col10 = gtk.TreeViewColumn('F.Salida')
+    col11 = gtk.TreeViewColumn('Recibe')
+    col12 = gtk.TreeViewColumn('Fol.Rec')
+    col13 = gtk.TreeViewColumn('Sale Para')
+        
+    grd_kardex.append_column(col01)
+    grd_kardex.append_column(col02)
+    grd_kardex.append_column(col03)
+    grd_kardex.append_column(col04)
+    grd_kardex.append_column(col05)
+    grd_kardex.append_column(col06)
+    grd_kardex.append_column(col07)
+    grd_kardex.append_column(col08)
+    grd_kardex.append_column(col09)
+    grd_kardex.append_column(col10)
+    grd_kardex.append_column(col11)
+    grd_kardex.append_column(col12)
+    grd_kardex.append_column(col13)
+        
+    # create a CellRenderers to render the data
+    cell01 = gtk.CellRendererText()
+    cell02 = gtk.CellRendererText()
+    cell03 = gtk.CellRendererText()
+    cell04 = gtk.CellRendererText()
+    cell05 = gtk.CellRendererText()
+    cell06 = gtk.CellRendererText()
+    cell07 = gtk.CellRendererText()
+    cell08 = gtk.CellRendererText()
+    cell09 = gtk.CellRendererText()
+    cell10 = gtk.CellRendererText()
+    cell11 = gtk.CellRendererText()
+    cell12 = gtk.CellRendererText()
+    cell13 = gtk.CellRendererText()
+        
+    col01.pack_start(cell01, False)
+    col02.pack_start(cell02, False)
+    col03.pack_start(cell03, False)
+    col04.pack_start(cell04, False)
+    col05.pack_start(cell05, False)
+    col06.pack_start(cell06, False)
+    col07.pack_start(cell07, False)
+    col08.pack_start(cell08, False)
+    col09.pack_start(cell09, False)
+    col10.pack_start(cell10, False)
+    col11.pack_start(cell11, False)
+    col12.pack_start(cell12, False)
+    col13.pack_start(cell13, False)
+        
+    col01.set_attributes(cell01, text=0)
+    col02.set_attributes(cell02, text=1)
+    col03.set_attributes(cell03, text=2)
+    col04.set_attributes(cell04, text=3)
+    col05.set_attributes(cell05, text=4)
+    col06.set_attributes(cell06, text=5)
+    col07.set_attributes(cell07, text=6)
+    col08.set_attributes(cell08, text=7)
+    col09.set_attributes(cell09, text=8)
+    col10.set_attributes(cell10, text=9)
+    col11.set_attributes(cell11, text=10)
+    col12.set_attributes(cell12, text=11)
+    col13.set_attributes(cell13, text=12)
+    #grd_kardex.connect("cursor-changed", self.ren_seleccionado)
+# --- Fin de define_tab_kardex(self) ------    
+
+  def define_tab_estadis(self):
+    global cia_z
+    grd_estadis = self.wTree.get_widget("grd_estadis")
+    self.lst_estadis = gtk.ListStore(str, str, str, str, str, str, str, str, str, str, str, str, str, str, str)
+    grd_estadis.set_model(self.lst_estadis)
+
+    col01 = gtk.TreeViewColumn('Alm')
+    col02 = gtk.TreeViewColumn('Ene')
+    col03 = gtk.TreeViewColumn('Feb')
+    col04 = gtk.TreeViewColumn('Mar')
+    col05 = gtk.TreeViewColumn('Abr')
+    col06 = gtk.TreeViewColumn('May')
+    col07 = gtk.TreeViewColumn('Jun')
+    col08 = gtk.TreeViewColumn('Jul')
+    col09 = gtk.TreeViewColumn('Ago')
+    col10 = gtk.TreeViewColumn('Sep')
+    col11 = gtk.TreeViewColumn('Oct')
+    col12 = gtk.TreeViewColumn('Nov')
+    col13 = gtk.TreeViewColumn('Dic')
+    col14 = gtk.TreeViewColumn('Total')
+    col15 = gtk.TreeViewColumn('Nombre')
+        
+    grd_estadis.append_column(col01)
+    grd_estadis.append_column(col02)
+    grd_estadis.append_column(col03)
+    grd_estadis.append_column(col04)
+    grd_estadis.append_column(col05)
+    grd_estadis.append_column(col06)
+    grd_estadis.append_column(col07)
+    grd_estadis.append_column(col08)
+    grd_estadis.append_column(col09)
+    grd_estadis.append_column(col10)
+    grd_estadis.append_column(col11)
+    grd_estadis.append_column(col12)
+    grd_estadis.append_column(col13)
+    grd_estadis.append_column(col14)
+    grd_estadis.append_column(col15)
+        
+    # create a CellRenderers to render the data
+    cell01 = gtk.CellRendererText()
+    cell02 = gtk.CellRendererText()
+    cell03 = gtk.CellRendererText()
+    cell04 = gtk.CellRendererText()
+    cell05 = gtk.CellRendererText()
+    cell06 = gtk.CellRendererText()
+    cell07 = gtk.CellRendererText()
+    cell08 = gtk.CellRendererText()
+    cell09 = gtk.CellRendererText()
+    cell10 = gtk.CellRendererText()
+    cell11 = gtk.CellRendererText()
+    cell12 = gtk.CellRendererText()
+    cell13 = gtk.CellRendererText()
+    cell14 = gtk.CellRendererText()
+    cell15 = gtk.CellRendererText()
+        
+    col01.pack_start(cell01, False)
+    col02.pack_start(cell02, False)
+    col03.pack_start(cell03, False)
+    col04.pack_start(cell04, False)
+    col05.pack_start(cell05, False)
+    col06.pack_start(cell06, False)
+    col07.pack_start(cell07, False)
+    col08.pack_start(cell08, False)
+    col09.pack_start(cell09, False)
+    col10.pack_start(cell10, False)
+    col11.pack_start(cell11, False)
+    col12.pack_start(cell12, False)
+    col13.pack_start(cell13, False)
+    col14.pack_start(cell14, False)
+    col15.pack_start(cell15, False)
+        
+    col01.set_attributes(cell01, text=0)
+    col02.set_attributes(cell02, text=1)
+    col03.set_attributes(cell03, text=2)
+    col04.set_attributes(cell04, text=3)
+    col05.set_attributes(cell05, text=4)
+    col06.set_attributes(cell06, text=5)
+    col07.set_attributes(cell07, text=6)
+    col08.set_attributes(cell08, text=7)
+    col09.set_attributes(cell09, text=8)
+    col10.set_attributes(cell10, text=9)
+    col11.set_attributes(cell11, text=10)
+    col12.set_attributes(cell12, text=11)
+    col13.set_attributes(cell13, text=12)
+    col14.set_attributes(cell14, text=13)
+    col15.set_attributes(cell15, text=14)
+# --- Fin de define_tab_estadis(self) ------    
+
+
+  def define_tabla_exist(self):
+    global cia_z
+    hbox_existe = self.wTree.get_widget("hbox_exist")
+    sql_z = "select clave from almacen where cia = " + repr(cia_z) 
+    sql_z = sql_z + " order by ordiary, clave"
+    cursor = mydb.cursor()
+    cursor.execute(sql_z)
+    result = cursor.fetchall()
+    ii_z = 0
+    self.edt_exis = []
+    self.alm_exis = []
+    for record in result:
+       vbox1 = gtk.VBox()
+       label1 = gtk.Label(record[0])
+       edt_exialm = gtk.Entry()
+       edt_exialm .set_width_chars(4)
+       edt_exialm .set_editable(False)
+       self.edt_exis.append(edt_exialm)
+       self.alm_exis.append(record[0])
+       label1.show()
+       vbox1.pack_start(label1, False, False, 0)
+       vbox1.show()
+       edt_exialm.show()
+       vbox1.pack_start(edt_exialm, False, False, 0)
+       vbox1.show()
+       hbox_existe.pack_start(vbox1, False, False, 0)
+       hbox_existe.show()
+
+    vbox1 = gtk.VBox()
+    label1 = gtk.Label("Total")
+    edt_exialm = gtk.Entry()
+    edt_exialm .set_width_chars(4)
+    edt_exialm .set_editable(False)
+    self.edt_exis.append(edt_exialm)
+    self.alm_exis.append("-TOTAL")
+    label1.show()
+    vbox1.pack_start(label1, False, False, 0)
+    vbox1.show()
+    edt_exialm.show()
+    vbox1.pack_start(edt_exialm, False, False, 0)
+    vbox1.show()
+    hbox_existe.pack_start(vbox1, False, False, 0)
+    hbox_existe.show()
+
+#--- Fin de Define Tabla Existencias ------------
+
+  def on_btn_primero_clicked(self, widget):
+      self.busca_vnd("P")
+
+  def on_btn_anter_clicked(self, widget):
+      self.busca_vnd("A", inven['codigo'])
+
+  def on_btn_sigte_clicked(self, widget):
+      self.busca_vnd("S", inven['codigo'])
+
+  def on_btn_ultimo_clicked(self, widget):
+      self.busca_vnd("U")
+
+  def on_edt_codigo_activate(self, widget):
+      self.busca_inv(widget.get_text().upper())
+
+  def on_edt_almkdx_activate(self, widget):
+      if self.busca_alm(widget.get_text().upper()) == True:
+         widget.set_text(almacen['clave'])
+      self.despliega_kardex()
+
+  def busca_inv(self, codigo_z = ''):
+      edt_codigo  = self.wTree.get_widget("edt_codigo")
+      if codigo_z == '':
+         codigo_z = edt_codigo.get_text().upper()
+         
+      sql_z = "select codigo, descri, tipo, costos, coston, piva from inven where codigo = '" + codigo_z + "' and cia=" + repr(cia_z)
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      numrows = int(cursor.rowcount)
+      if numrows > 0:
+        record = cursor.fetchone()
+        codigo_z    = record[0]
+        resp_z = True
+      else:
+        sql_z = "select codigo, descri, tipo from inven where codigo like '" + codigo_z + "%' and cia = " + repr(cia_z) + " order by codigo"
+        cursor = mydb.cursor()
+        cursor.execute(sql_z)
+        result_z = cursor.fetchall()
+        datosbuscados_z = utils.busca_datos(result_z, "Codigo:Descri:Tipo", "Seleccione El Articulo")
+        miresp_z = datosbuscados_z.split(":")
+        resp_z = utils.StrToInt(miresp_z[-1])
+        if resp_z == gtk.RESPONSE_OK:
+           codigo_z    = miresp_z[0]
+           resp_z = True
+        else:
+           resp_z = False
+        #endif
+      #endif
+      if(resp_z == True):
+         self.busca_vnd("D", codigo_z)
+
+      return (resp_z)
+
+  def on_btn_nuevo_clicked(self, widget):
+      global modo_z
+      modo_z = NUEVO
+      edt_codigo  = self.wTree.get_widget("edt_codigo")
+      self.editable_onoff(True)
+      edt_codigo.grab_focus()
+
+  def on_btn_modif_clicked(self, widget):
+      global modo_z
+      modo_z = MODIFICA
+      edt_nombre = self.wTree.get_widget("edt_nombre")
+      self.editable_onoff(True)
+      edt_nombre.grab_focus()
+
+  def on_btn_borra_clicked(self, widget):
+      global modo_z
+      modo_z = BORRAR
+      codigo_z = almacen['clave']
+      nombre_z = almacen['nombre']
+      resp_z = utils.yesnodlg("Seguro de Eliminar este Almacen ?" + nombre_z)
+      if resp_z == gtk.RESPONSE_OK:
+         sql_z = "delete from almacen where clave='" + codigo_z + "' and cia= " + repr(cia_z)
+         cursor = mydb.cursor()
+         cursor.execute(sql_z)
+         self.limpia_campos()
+        #End if
+
+  def on_btn_cancelar_clicked(self, widget):
+      self.editable_onoff(False)
+
+  def on_btn_aceptar_clicked(self, widget):
+      self.editable_onoff(False)
+      global modo_z
+      sql_z = ''
+      self.okcancel = True
+      edt_codigo  = self.wTree.get_widget("edt_codigo")
+      edt_nombre  = self.wTree.get_widget("edt_nombre")
+      edt_direc   = self.wTree.get_widget("edt_direc")
+      edt_ordiary = self.wTree.get_widget("edt_ordiary")
+      edt_exib    = self.wTree.get_widget("edt_exib")
+      edt_zona    = self.wTree.get_widget("edt_zona")
+      edt_ordtab  = self.wTree.get_widget("edt_ordtab")
+
+      almacen['clave']   = edt_codigo.get_text().upper()
+      almacen['nombre']  = edt_nombre.get_text().upper()
+      almacen['direc']   = edt_direc.get_text().upper()
+      almacen['cia']     = cia_z
+      almacen['ordiary'] = def_tablas.StrToInt(edt_ordiary.get_text())
+      almacen['exib']    = edt_exib.get_text()
+      almacen['zona']    = edt_zona.get_text()
+      almacen['ordtab']  = def_tablas.StrToInt(edt_ordtab.get_text())
+      if modo_z == NUEVO:
+         sql_z = "insert into almacen (clave,nombre,direc,sdoini,impent,impsal,sdofin,cia,ordiary,exib,zona,ordtabt) values ( "
+         sql_z = sql_z + "'" + almacen['clave'] + "',"
+         sql_z = sql_z + "'" + almacen['nombre'] + "',"
+         sql_z = sql_z + "'" + almacen['direc'] + "',"
+         sql_z = sql_z + "0,"
+         sql_z = sql_z + "0,"
+         sql_z = sql_z + "0,"
+         sql_z = sql_z + "0,"
+         sql_z = sql_z + repr(cia_z) + ","
+         sql_z = sql_z + repr(almacen['ordiary']) + ","
+         sql_z = sql_z + "'" + almacen['exib'] + "',"
+         sql_z = sql_z + "'" + almacen['zona'] + "',"
+         sql_z = sql_z + repr(almacen['ordtab']) + ")"
+          
+      elif modo_z == MODIFICA:
+         sql_z = "update almacen set "
+         sql_z = sql_z + "nombre = '" + almacen['nombre'] + "',"
+         sql_z = sql_z + "direc = '" + almacen['direc'] + "',"
+         sql_z = sql_z + "ordiary = " + repr(almacen['ordiary']) + ","
+         sql_z = sql_z + "exib = '" + almacen['exib'] + "',"
+         sql_z = sql_z + "zona = '" + almacen['zona'] + "',"
+         sql_z = sql_z + "ordtabt = " + repr(almacen['ordtab'])
+         sql_z = sql_z + " where clave = '" + almacen['clave'] + "'"
+         sql_z = sql_z + " and cia = " + repr(cia_z)
+      cursor = mydb.cursor()
+      print sql_z
+      cursor.execute(sql_z)
+
+  def on_edt_tipoest_activate(self, widget):
+      self.toma_tipo_estadis()
+
+  def on_edt_agrupapor_activate(self, widget):
+      self.toma_grupo_estadis()
+
+  def toma_grupo_estadis(self):
+      agrupapor_z = self.wTree.get_widget("edt_agrupapor").get_text().upper()
+      self.wTree.get_widget("edt_agrupapor").set_text(agrupapor_z)
+      if not(agrupapor_z in tipoagru_z):
+         datosbuscados_z = utils.busca_datos(tipoagru_z, "Conjunto", "Seleccione Como desea agrupar")
+         miresp_z = datosbuscados_z.split(":")
+         resp_z = utils.StrToInt(miresp_z[-1])
+         if resp_z <> gtk.RESPONSE_OK:
+           return (False)
+         agrupapor_z   = miresp_z[0]
+         self.wTree.get_widget("edt_agrupapor").set_text(agrupapor_z)
+         if agrupapor_z == "GRUPO":
+            codest_z = self.wTree.get_widget("edt_grupo").get_text()
+         elif agrupapor_z == "MARCA":
+            codest_z = self.wTree.get_widget("edt_marca").get_text()
+         elif agrupapor_z == "SITUACION":
+            codest_z = self.wTree.get_widget("edt_situac").get_text()
+         elif agrupapor_z == "PROVEEDOR":
+            codest_z = self.wTree.get_widget("edt_prove").get_text()
+         elif agrupapor_z == "DIARY":
+            codest_z = self.wTree.get_widget("edt_diary").get_text()
+         elif agrupapor_z == "CODIGO":
+            codest_z = self.wTree.get_widget("edt_codigo").get_text()
+         self.wTree.get_widget("edt_codest").set_text(codest_z)
+
+  def toma_nombre_estadis(self, estadi_z, clave_z):
+      nombre_z = ""
+      if (estadi_z == "SALIDAS ESPECIALES" ) or \
+         (estadi_z == "ENTRADAS ESPECIALES" ) or \
+         (estadi_z == "ENTRADAS X CANCEL" ) or \
+         (estadi_z == "ENTRADAS X COMPRA" ):
+         sql_z = "select nombre from almacen where clave = '" + clave_z + "' and cia=" + repr(cia_z)
+      elif estadi_z == "SALIDAS X VENTA":
+         sql_z = "select nombre from ptovta where clave = '" + clave_z + "' and cia=" + repr(cia_z)
+      elif estadi_z == "SALIDAS MAYOREO":
+         sql_z = "select nombre from mayoris where codigo = '" + clave_z + "' and cia=" + repr(cia_z)
+      cursoralm = mydb.cursor()
+      cursoralm.execute(sql_z)
+      numrows = int(cursoralm.rowcount)
+      if numrows > 0:
+         recalm = cursoralm.fetchone()
+         nombre_z = recalm[0]
+      # Fin de If
+      return (nombre_z)
+
+
+  def toma_tipo_estadis(self):
+      estadi_z = self.wTree.get_widget("edt_tipoest").get_text().upper()
+      self.wTree.get_widget("edt_tipoest").set_text(estadi_z)
+      if not(estadi_z in tipoest_z):
+         datosbuscados_z = utils.busca_datos(tipoest_z, "Tipo", "Seleccione Que estadistica desea")
+         miresp_z = datosbuscados_z.split(":")
+         resp_z = utils.StrToInt(miresp_z[-1])
+         if resp_z <> gtk.RESPONSE_OK:
+           return (False)
+         estadi_z   = miresp_z[0]
+         self.wTree.get_widget("edt_tipoest").set_text(estadi_z)
+
+  def on_btn_okestadis_clicked(self, widget):
+      self.toma_grupo_estadis()
+      self.toma_tipo_estadis()
+      grupoest_z = self.wTree.get_widget("edt_agrupapor").get_text().upper()
+      estadi_z = self.wTree.get_widget("edt_tipoest").get_text().upper()
+      codigo_z = self.wTree.get_widget("edt_codest").get_text().upper()
+      anu_z = self.wTree.get_widget("edt_anuest").get_value_as_int()
+      sql_z = "select a.alm, a.mes, sum(a.unidades) from "
+      sql_z = sql_z + " estadis a join inven b on a.codigo = b.codigo and a.cia = b.cia "
+      if grupoest_z in ["GRUPO", "MARCA", "DIARY"] :
+         sql_z = " join inv_invhist c on b.codigo = c.codigo and b.cia = c.cia"
+         sql_z = sql_z + " on a.codigo = b.codigo and a.cia = b.cia "
+         sql_z = sql_z + " join inv_relinv d on c.idart = d.idart and d.idrel = "
+         join2_z = ""
+         where_z = " where "
+         if grupoest_z == "GRUPO":
+            idrelinv_z = def_tablas.REL_INVEN_ARTDESP
+            join2_z = " join inv_grupos e on d.iddato = e.idgrupo "
+            where_z = " e.codigo "
+         elif grupoest_z == "MARCA":
+            idrelinv_z = def_tablas.REL_INVEN_MARCAS
+            join2_z = " join inv_marcas e on d.iddato = e.idmarcainv "
+            where_z = " e.codigo "
+         elif grupoest_z == "DIARY":
+            idrelinv_z = def_tablas.REL_INVEN_GPODIARY
+            join2_z = " join gpodiary e on d.iddato = e.idgpodiary "
+            where_z = " e.grupo "
+         sql_z = sql_z + utils.IntToStr(idrelinv_z) + join2_z 
+      else:
+        where_z = " where "
+        if grupoest_z == "PROVEEDOR":
+           where_z = where_z + " b.prove "
+        elif grupoest_z == "SITUACION":
+           where_z = where_z + " b.empaqe "
+        elif grupoest_z == "CODIGO":
+           where_z = where_z + " a.codigo "
+      where_z = where_z + " like '" + codigo_z + "%' "
+      sql_z = sql_z + where_z
+      where2_z = " and ( "
+      if estadi_z == "SALIDAS ESPECIALES":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("S")[0])
+      elif estadi_z == "SALIDAS X VENTA":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("V")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("F")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("H")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("Q")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("1")[0])
+      elif estadi_z == "ENTRADAS X CANCEL":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("C")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("O")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("J")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("U")[0])
+         where2_z = where2_z + " or a.tipo = " + utils.IntToStr(def_tablas.tipoentra("2")[0])
+      elif estadi_z == "ENTRADAS ESPECIALES":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("P")[0])
+      elif estadi_z == "SALIDAS MAYOREO":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("M")[0])
+      elif estadi_z == "ENTRADAS X COMPRA":
+         where2_z = where2_z + "a.tipo = " + utils.IntToStr(def_tablas.tipoentra("E")[0])
+      where2_z = where2_z + ") and anu = " + utils.IntToStr(anu_z)
+      sql_z = sql_z + where2_z + " group by a.alm, a.mes"
+      print sql_z
+      self.lst_estadis.clear()
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      result = cursor.fetchall()
+      #             alm, 01  02  03  04  05  06  07  08  09  10  11  12  tot nom
+      regest_z = [ "-1", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+      for record in result:
+        almrec_z = record[0]
+        if almrec_z <> regest_z[0]:
+           if regest_z[0] <> "-1":
+              regest_z[14] = self.toma_nombre_estadis(estadi_z, regest_z[0])
+              self.lst_estadis.append(regest_z)
+           #Fin de IF
+           regest_z[0] = almrec_z
+           unids_z = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+           regest_z = [ almrec_z, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+        #End if
+        mes_z = record[1]
+        regest_z[mes_z] = utils.IntToStr(utils.StrToInt(regest_z[mes_z]) + record[2])
+        regest_z[13] = utils.IntToStr(utils.StrToInt(regest_z[13]) + record[2])
+      # Fin de For
+      regest_z[14] = self.toma_nombre_estadis(estadi_z, almrec_z)
+      self.lst_estadis.append(regest_z)
+# ---Fin de on_btn_okestadis_clicked -----
+
+  def busca_vnd(self, hacia_z, codigo_z=''):
+      global mydb
+      global cia_z
+      sql_z = "select codigo,cod2,descri,tipo,prove,linea,empaqe,minimo,maximo,"
+      sql_z = sql_z + "precio,piva,costos,coston,inicials,entcoms,entcans,entesps,"
+      sql_z = sql_z + "salvtas,salfons,salesps,salmays,existes,inicialn,entcomn,"
+      sql_z = sql_z + "entcann,entespn,salvtan,salfonn,salespn,salmayn,existen,"
+      sql_z = sql_z + "cosinicials,cosentcoms,cosentcans,cosentesps,cossalvtas,"
+      sql_z = sql_z + "cossalfons,cossalesps,cossalmays,cosexistes,cosinicialn,"
+      sql_z = sql_z + "cosentcomn,cosentcann,cosentespn,cossalvtan,cossalfonn,"
+      sql_z = sql_z + "cossalespn,cossalmayn,cosexisten,fecalta,cia,mds,elec,precelec "
+      sql_z = sql_z + "from inven where "
+      if hacia_z == 'P':
+        sql_z = sql_z + "codigo = ( select min(codigo) from inven where cia = " + repr(cia_z) + ") and cia = " + repr(cia_z)
+      elif hacia_z == 'U':
+        sql_z = sql_z + "codigo = ( select max(codigo) from inven where cia = " + repr(cia_z) + ") and cia = " + repr(cia_z)
+      elif hacia_z == 'A':
+        sql_z = sql_z + "codigo = ( select max(codigo) from inven where codigo < '" + codigo_z + "' and cia = " + repr(cia_z) + ") and cia = " + repr(cia_z)
+      elif hacia_z == 'S':
+        sql_z = sql_z + "codigo = ( select min(codigo) from inven where codigo > '" + codigo_z + "' and cia = " + repr(cia_z) + ") and cia = " + repr(cia_z)
+      elif hacia_z == 'D':
+        sql_z = sql_z + "codigo = '" + codigo_z + "' and cia = " + repr(cia_z)
+      # execute SQL statement
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      numrows = int(cursor.rowcount)
+      if numrows > 0:
+        record = cursor.fetchone()
+        inven['codigo']        = record[0]
+        inven['cod2']          = record[1]
+        inven['descri']        = record[2]
+        inven['tipo']          = record[3]
+        inven['prove']         = record[4]
+        inven['linea']         = record[5]
+        inven['empaqe']        = record[6]
+        inven['minimo']        = record[7]
+        inven['maximo']        = record[8]
+        inven['precio']        = record[9]
+        inven['piva']          = record[10]
+        inven['costos']        = record[11]
+        inven['coston']        = record[12]
+        inven['inicials']      = record[13]
+        inven['entcoms']       = record[14]
+        inven['entcans']       = record[15]
+        inven['entesps']       = record[16]
+        inven['salvtas']       = record[17]
+        inven['salfons']       = record[18]
+        inven['salesps']       = record[19]
+        inven['salmays']       = record[20]
+        inven['existes']       = record[21]
+        inven['inicialn']      = record[22]
+        inven['entcomn']       = record[23]
+        inven['entcann']       = record[24]
+        inven['entespn']       = record[25]
+        inven['salvtan']       = record[26]
+        inven['salfonn']       = record[27]
+        inven['salespn']       = record[28]
+        inven['salmayn']       = record[29]
+        inven['existen']       = record[30]
+        inven['cosinicials']   = record[31]
+        inven['cosentcoms']    = record[32]
+        inven['cosentcans']    = record[33]
+        inven['cosenteps']     = record[34]
+        inven['cossalvtas']    = record[35]
+        inven['cossalfons']    = record[36]
+        inven['cossalesps']    = record[37]
+        inven['cossalmays']    = record[38]
+        inven['cosexistes']    = record[39]
+        inven['cosinicialn']   = record[40]
+        inven['cosentcomns']   = record[41]
+        inven['cosentcann']    = record[42]
+        inven['cosentespn']    = record[43]
+        inven['cossalvtan']    = record[44]
+        inven['cossalfonn']    = record[45]
+        inven['cossalespn']    = record[46]
+        inven['cossalmayn']    = record[47]
+        inven['cosexisten']    = record[48]
+        inven['fecalta']       = record[49]
+        inven['cia']           = record[50]
+        inven['mds']           = record[51]
+        inven['elec']          = record[52]
+        inven['precelec']      = record[53]
+        self.despliega_datos()
+
+  def despliega_datos(self):
+      mubmds_z = 0
+      mubfide_z = 0
+      codigo_z = inven['codigo'] 
+      costosi_z = inven['costos'] 
+      costono_z = inven['coston']
+      preciomds_z = inven['precio']
+      precelec_z = inven['precelec']
+      piva_z = inven['piva']
+      empaqe_z = inven['empaqe']
+      if inven['precio'] <> 0:
+         mubmds_z = 100 * (1 -(costono_z / preciomds_z))
+        
+      if inven['precelec'] <> 0:
+         mubfide_z = 100 * (1 - (costono_z / precelec_z))
+         
+      fecalta_z = inven['fecalta']
+      univta_z  = inven['salvtas'] + \
+        inven['salvtan'] + inven['salfons'] + inven['salfonn']
+      maximo_z = utils.inv_maximo(fecalta_z, univta_z, self.hoy_z, self.inianu_z)
+      preciomay_z = utils.calcu_preciomay(empaqe_z, costosi_z, preciomds_z, piva_z)
+      preciomayneto_z = preciomay_z * ( 1 + piva_z / 100 )
+      mubmay_z = -1
+      if preciomds_z <> 0:
+        mubmay_z = ( 1 - (preciomayneto_z / preciomds_z) ) * 100;      
+      
+      sql_z = "select codigo, fecha, precmds, precelec, empqe, observs, cia, fecinivig "
+      sql_z = sql_z + "from invulpre where codigo = '" + codigo_z + "' and cia = " + repr(cia_z)
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      numrows = int(cursor.rowcount)
+      if numrows > 0:
+        record = cursor.fetchone()
+        invulpre['codigo']    = record[0]
+        invulpre['fecha']     = record[1]
+        invulpre['precmds']   = record[2]
+        invulpre['precelec']  = record[3]
+        invulpre['empqe']     = record[4]
+        invulpre['observs']   = record[5]
+        invulpre['cia']       = record[6]
+        invulpre['fecinivig'] = record[7]
+        
+      fecinivig_z = invulpre['fecinivig'];
+
+      #Voy a buscar la Marca del Articulo
+      marca_z = def_tablas.busca_rel_inv(mydb, codigo_z, cia_z, def_tablas.REL_INVEN_MARCAS)
+      diary_z = def_tablas.busca_rel_inv(mydb, codigo_z, cia_z, def_tablas.REL_INVEN_GPODIARY)
+      grupo_z = def_tablas.busca_rel_inv(mydb, codigo_z, cia_z, def_tablas.REL_INVEN_ARTDESP)
+      descrilar_z = def_tablas.busca_rel_inv(mydb, codigo_z, cia_z, def_tablas.REL_INVEN_DESCRILAR)
+
+      inicials_z = '%4d' % int(inven['inicials'])
+      entcomps_z = '%4d' % int(inven['entcoms'])
+      entcans_z = '%4d' % int(inven['entcans'])
+      entesps_z = '%4d' % int(inven['entesps'])
+      totents_z = '%4d' % int(( inven['inicials'] + inven['entcoms'] + inven['entcans'] + inven['entesps']))
+      salvtas_z = '%4d' % int(inven['salvtas'])
+      salfons_z = '%4d' % int(inven['salfons'])
+      salesps_z = '%4d' % int(inven['salesps'])
+      salmays_z = '%4d' % int(inven['salmays'])
+      existes_z = '%4d' % int(inven['existes'])
+      inicialn_z = '%4d' % int(inven['inicialn'])
+      entcompn_z = '%4d' % int(inven['entcomn'])
+      entcann_z = '%4d' % int(inven['entcann'])
+      entespn_z = '%4d' % int(inven['entespn'])
+      totentn_z = '%4d' % int(( inven['inicialn'] + inven['entcomn'] + inven['entcann'] + inven['entespn']))
+      salvtan_z = '%4d' % int(inven['salvtan'])
+      salfonn_z = '%4d' % int(inven['salfonn'])
+      salespn_z = '%4d' % int(inven['salespn'])
+      salmayn_z = '%4d' % int(inven['salmayn'])
+      existen_z = '%4d' % int(inven['existen'])
+
+      self.wTree.get_widget("edt_inicials").set_text(inicials_z)
+      self.wTree.get_widget("edt_inicialn").set_text(inicialn_z)
+      self.wTree.get_widget("edt_entcoms").set_text(entcomps_z)
+      self.wTree.get_widget("edt_entcomn").set_text(entcompn_z)
+      self.wTree.get_widget("edt_entcans").set_text(entcans_z)
+      self.wTree.get_widget("edt_entcann").set_text(entcann_z)
+      self.wTree.get_widget("edt_entesps").set_text(entesps_z)
+      self.wTree.get_widget("edt_entespn").set_text(entespn_z)
+      self.wTree.get_widget("edt_totents").set_text(totents_z)
+      self.wTree.get_widget("edt_totentn").set_text(totentn_z)
+      self.wTree.get_widget("edt_salvtas").set_text(salvtas_z)
+      self.wTree.get_widget("edt_salvtan").set_text(salvtan_z)
+      self.wTree.get_widget("edt_salfons").set_text(salfons_z)
+      self.wTree.get_widget("edt_salfonn").set_text(salfonn_z)
+      self.wTree.get_widget("edt_salesps").set_text(salesps_z)
+      self.wTree.get_widget("edt_salespn").set_text(salespn_z)
+      self.wTree.get_widget("edt_salmays").set_text(salmays_z)
+      self.wTree.get_widget("edt_salmayn").set_text(salmayn_z)
+      self.wTree.get_widget("edt_existes").set_text(existes_z)
+      self.wTree.get_widget("edt_existen").set_text(existen_z)
+
+      sql_z = "select alm, existes + existen from exist where codigo = '" + codigo_z + "'"
+      sql_z = sql_z + " and cia = " + repr(cia_z)
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      result = cursor.fetchall()
+      totex_z = 0
+      for edt_exialm in self.edt_exis:
+          edt_exialm.set_text("")
+      for record in result:
+          if record[1] <> 0:
+             totex_z = totex_z + record[1]
+             iii_z = self.alm_exis.index(record[0])
+             if iii_z <> -1:
+                edt_exialm = self.edt_exis[iii_z]
+                edt_exialm.set_text('%4d' % int(record[1]))
+
+      iii_z = self.alm_exis.index("-TOTAL")
+      if iii_z <> -1:
+         edt_exialm = self.edt_exis[iii_z]
+         edt_exialm.set_text('%4d' % int(totex_z))
+         
+      self.wTree.get_widget("edt_codigo").set_text(codigo_z)
+      self.wTree.get_widget("edt_descri").set_text(inven['descri'])
+      self.wTree.get_widget("edt_grupo").set_text(grupo_z)
+      self.wTree.get_widget("edt_ulcampre").set_text(utils.DateToStr(self.inianu_z))
+      self.wTree.get_widget("edt_prove").set_text(inven['prove'])
+      self.wTree.get_widget("edt_diary").set_text(diary_z)
+      self.wTree.get_widget("edt_linea").set_text(inven['linea'])
+      self.wTree.get_widget("edt_vigen").set_text(utils.DateToStr(fecinivig_z))
+      self.wTree.get_widget("edt_costosi").set_text(utils.currency(inven['costos']))
+      self.wTree.get_widget("edt_costono").set_text(utils.currency(inven['coston']))
+      self.wTree.get_widget("edt_tipo").set_text(inven['tipo'])
+      self.wTree.get_widget("edt_fecalta").set_text(utils.DateToStr(inven['fecalta']))
+      self.wTree.get_widget("edt_preciomds").set_text(utils.currency(preciomds_z))
+      self.wTree.get_widget("edt_preciofide").set_text(utils.currency(precelec_z))
+      self.wTree.get_widget("edt_mubmds").set_text(utils.currency(mubmds_z))
+      self.wTree.get_widget("edt_mubfide").set_text(utils.currency(mubfide_z))
+      self.wTree.get_widget("edt_min").set_text(repr(inven['minimo']))
+      self.wTree.get_widget("edt_max").set_text(repr(maximo_z))
+      self.wTree.get_widget("edt_piva").set_text(utils.currency(piva_z))
+      self.wTree.get_widget("edt_situac").set_text(empaqe_z)
+      self.wTree.get_widget("edt_preciomay").set_text(utils.currency(preciomay_z))
+      self.wTree.get_widget("edt_preciomayneto").set_text(utils.currency(preciomayneto_z))
+      self.wTree.get_widget("edt_mubmay").set_text(utils.currency(mubmay_z))
+      self.wTree.get_widget("edt_marca").set_text(marca_z)
+      self.wTree.get_widget("edt_descri2").set_text(descrilar_z)
+      self.wTree.get_widget("edt_codest").set_text(codigo_z)
+      self.despliega_kardex()
+
+  def despliega_kardex(self):
+      global cia_z
+      global mydb
+      alm_z = self.wTree.get_widget("edt_almkdx").get_text().upper()
+      codigo_z = inven['codigo']
+      self.lst_kardex.clear()
+      sql_z = "select codigo,almac,folio,prove,nompro,compro,fecha,costo,"
+      sql_z = sql_z + "modsal,modent,nentrada,vienede,folviene,vahacia,folrec,"
+      sql_z = sql_z + "salio,fechasal,serie,nsalida"
+      sql_z = sql_z + " from movart where "
+      sql_z = sql_z + "codigo = '" + codigo_z + "' and almac='" + alm_z + "'" 
+      sql_z = sql_z + " and cia=" + repr(cia_z) + " order by folio"
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      numrows = int(cursor.rowcount)
+      movart = def_tablas.define_movart()
+      if numrows:
+      # get and display one row at a time
+        result = cursor.fetchall()
+        for record in result:
+           folio_z = record[2]
+           movart['folio']      = record[2]
+           movart['nompro']     = record[4]
+           movart['compro']     = record[5]
+           movart['fecha']      = record[6]
+           movart['modsal']     = record[8]
+           movart['modent']     = record[9]
+           movart['nentrada']   = record[10]
+           movart['vienede']    = record[11]
+           movart['folvienede'] = record[12]
+           movart['vahacia']    = record[13]
+           movart['folrec']     = record[14]
+           movart['salio']      = record[15]
+           movart['fechasal']   = record[16]
+           movart['serie']      = record[17]
+           movart['nsalida']    = record[18]
+           fecha_z = utils.DateToStr(movart['fecha'])
+           modent_z = movart['modent']
+           nentrada_z = movart['nentrada']
+           vienede_z = movart['vienede']
+           if movart['folviene'] <> 0:
+             folviene_z = utils.IntToStr(movart['folviene'])
+           else:
+             folviene_z = ""
+           prove_z = def_tablas.busca_dato(mydb, movart['nompro'], CONCEPTOS)
+           folio_z = movart['folio']
+           serie_z = movart['serie']
+           if movart['salio'] == "S":
+             modsal_z = movart['modsal']
+             fecsal_z = utils.DateToStr(movart['fechasal'])
+             compro_z = def_tablas.busca_dato(mydb, movart['compro'], CONCEPTOS)
+             if movart['vahacia'] <> "":
+                almrec_z = movart['vahacia']
+                if movart['folrec'] <> 0:
+                   folrec_z = utils.IntToStr(movart['folrec'])
+                else:
+                   folrec_z = ""
+                #Fin de if
+             #Fin de If
+           else:
+             modsal_z = ""
+             fecsal_z = ""
+             compro_z = ""
+             almrec_z = ""
+             folrec_z = ""
+           #Fin de If
+           self.lst_kardex.append([fecha_z, modent_z, nentrada_z, vienede_z, folviene_z,\
+           prove_z, folio_z, serie_z, modsal_z, fecsal_z, almrec_z, folrec_z, compro_z])
+         # Fin de For
+       #Fin de If
+# Fin de muestra Kardex
+
+  def busca_alm(self, alm_z = ''):
+      edt_almkdx  = self.wTree.get_widget("edt_almkdx")
+      edt_nombre   = self.wTree.get_widget("edt_nombrealm")
+      if alm_z == '':
+         alm_z = edt_almkdx.get_text().upper()
+         
+      sql_z = "select clave, nombre from almreps where clave = '" + alm_z + "' and cia = " + repr(cia_z)
+      cursor = mydb.cursor()
+      cursor.execute(sql_z)
+      numrows = int(cursor.rowcount)
+      if numrows > 0:
+        record = cursor.fetchone()
+        almacen['clave']    = record[0]
+        almacen['nombre']  = record[1]
+        edt_almkdx.set_text(almacen['clave'])
+        edt_nombre.set_text(almacen['nombre'])
+        resp_z = True
+      else:
+        sql_z = "select clave, nombre from almreps where cia = " + repr(cia_z) + " order by clave"
+        cursor = mydb.cursor()
+        cursor.execute(sql_z)
+        result_z = cursor.fetchall()
+        datosbuscados_z = utils.busca_datos(result_z, "Codigo:Nombre", "Seleccione El Almacen")
+        miresp_z = datosbuscados_z.split(":")
+        resp_z = utils.StrToInt(miresp_z[-1])
+        if resp_z == gtk.RESPONSE_OK:
+           almacen['clave']   = miresp_z[0]
+           almacen['nombre']  = miresp_z[1]
+           edt_almkdx.set_text(almacen['clave'])
+           edt_nombre.set_text(almacen['nombre'])
+           resp_z = True
+        else:
+           resp_z = False
+        #endif
+      #endif  
+      return (resp_z)
+#------------Fin de busca_alm --------------
+
+# -- Despliega los datos de detalle del folio seleccionado ---
+  def on_grd_kardex_activate(self, widget, row=None, value=None):
+      colfolio_z = 6
+      codigo_z = self.wTree.get_widget("edt_codigo").get_text().upper()
+      alm_z = self.wTree.get_widget("edt_almkdx").get_text().upper()
+      grd_kardex = self.wTree.get_widget("grd_kardex")
+      selection = grd_kardex.get_selection()
+      # Get the selection iter
+      model, selection_iter = selection.get_selected()
+      if (selection_iter):
+          folio_z = utils.StrToInt(self.lst_kardex.get_value(selection_iter, colfolio_z))
+          self.despliega_detalle_movart(codigo_z, alm_z, folio_z)
+
+#------------Fin de on_grd_kardex_activate --------------
+
+  def despliega_detalle_movart(self, codigo_z, alm_z, folio_z):
+      desp_movart = def_tablas.despliega_detalle_movart(mydb, codigo_z, alm_z, folio_z, cia_z)
+      resp_z = desp_movart.ejecuta()
+#------------Fin de despliega_detalle_movart --------------
+
+  def limpia_campos(self):
+      edt_codigo  = self.wTree.get_widget("edt_codigo")
+      edt_nombre  = self.wTree.get_widget("edt_nombre")
+      edt_direc   = self.wTree.get_widget("edt_direc")
+      edt_sdoini  = self.wTree.get_widget("edt_sdoini")
+      edt_impent  = self.wTree.get_widget("edt_impent")
+      edt_impsal  = self.wTree.get_widget("edt_impsal")
+      edt_sdofin  = self.wTree.get_widget("edt_sdofin")
+      edt_ordiary = self.wTree.get_widget("edt_ordiary")
+      edt_exib    = self.wTree.get_widget("edt_exib")
+      edt_zona    = self.wTree.get_widget("edt_zona")
+      edt_ordtab  = self.wTree.get_widget("edt_ordtab")
+
+      edt_codigo.set_text  ('')
+      edt_nombre.set_text  ('')
+      edt_direc.set_text   ('')
+      edt_sdoini.set_text  ('')
+      edt_impent.set_text  ('')
+      edt_impsal.set_text  ('')
+      edt_sdofin.set_text  ('')
+      edt_ordiary.set_text ('')
+      edt_zona.set_text    ('')
+      edt_ordtab.set_text  ('')
+      edt_exib.set_text    ('')
+
+  def editable_onoff(self, modo):
+      return (-1)
+      edt_codigo  = self.wTree.get_widget("edt_codigo")
+      edt_nombre  = self.wTree.get_widget("edt_nombre")
+      edt_direc   = self.wTree.get_widget("edt_direc")
+      edt_sdoini  = self.wTree.get_widget("edt_sdoini")
+      edt_impent  = self.wTree.get_widget("edt_impent")
+      edt_impsal  = self.wTree.get_widget("edt_impsal")
+      edt_sdofin  = self.wTree.get_widget("edt_sdofin")
+      edt_ordiary = self.wTree.get_widget("edt_ordiary")
+      edt_exib    = self.wTree.get_widget("edt_exib")
+      edt_zona    = self.wTree.get_widget("edt_zona")
+      edt_ordtab  = self.wTree.get_widget("edt_ordtab")
+      btn_ok      = self.wTree.get_widget("btn_ok")
+      btn_cancel  = self.wTree.get_widget("btn_cancel")
+      btn_nuevo   = self.wTree.get_widget("btn_nuevo")
+      btn_modif   = self.wTree.get_widget("btn_modif")
+      btn_borra   = self.wTree.get_widget("btn_borra")
+      btn_primero = self.wTree.get_widget("btn_primero")
+      btn_anter   = self.wTree.get_widget("btn_anter")
+      btn_sigte   = self.wTree.get_widget("btn_sigte")
+      btn_ultimo  = self.wTree.get_widget("btn_ultimo")
+    
+      edt_codigo.set_editable(modo)
+      edt_nombre.set_editable(modo)
+      edt_direc.set_editable(modo)
+      edt_sdoini.set_editable(modo)
+      edt_impent.set_editable(modo)
+      edt_impsal.set_editable(modo)
+      edt_sdofin.set_editable(modo)
+      edt_ordiary.set_editable(modo)
+      edt_zona.set_editable(modo)
+      edt_ordtab.set_editable(modo)
+      edt_exib.set_editable(modo)
+      btn_ok.set_child_visible(modo)
+      btn_cancel.set_child_visible(modo)
+      btn_nuevo.set_child_visible(not(modo))
+      btn_modif.set_child_visible(not(modo))
+      btn_borra.set_child_visible(not(modo))
+      btn_primero.set_child_visible(not(modo))
+      btn_anter.set_child_visible(not(modo))
+      btn_sigte.set_child_visible(not(modo))
+      btn_ultimo.set_child_visible(not(modo))
+
+
+if __name__ == "__main__":
+   hwg = Altainv()
+   gtk.main()
+
+def main():
+
+    gtk.main()
+    return 0
